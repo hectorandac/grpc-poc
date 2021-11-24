@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+option go_package = "github.com/hectorandac/grpc-poc/protos";
+option java_multiple_files = true;
+option java_package = "io.grpc.practice.grpcpoc";
+option java_outer_classname = "GrpcPoc";
+
+package grpcpoc;
+
+service Billing {
+  rpc BillUser(BillRequest) returns (BillResponse) {}
+  rpc UserBalance(BillableEntity) returns (BillResponse) {}
+  rpc FindOrCreateBillingEntity(BillableEntity) returns (BillResponse) {}
+  rpc CalculateMessageRate(BillRequest) returns (BillResponse) {}
+}
+
+message Message {
+    string id = 1;
+	string recipient = 2;
+	string body = 3;
+	string Sender = 4;
+	string type = 5;
+	int64 CreatedOn = 6;
+	int64 ReceivedOn = 7;
+	int64 ProcessedOn = 8;
+}
+
+message BillRequest {
+    string userUUID = 1;
+    Message deliverable = 2;
+}
+
+message BillableEntity {
+    string billableEntityID = 1;
+    string userUUID = 2;
+    float balance = 3;
+    string fullName = 4;
+}
+
+message BillResponse {
+    bool success = 1;
+    string body = 2;
+}
