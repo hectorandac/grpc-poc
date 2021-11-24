@@ -1,0 +1,102 @@
+{
+	"info": {
+		"_postman_id": "6ffbe31a-5143-485a-a295-d66b19f9b20d",
+		"name": "gRPC DEMO",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Send Message",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmdWxsbmFtZSI6IkhlY3RvciBBY29zdGEiLCJiaWxsYWJsZWVudGl0eWlkIjoiSmhiR2NpT2lKSVV6STFOaUlzSW5SNWNDSTZJa3BYVkNKOSIsInVzZXJ1dWlkIjoiZXlKaGJHY2lPaUpJVXpJMU5pSXNJblI1Y0NJNklrcFhWQ0o5IiwiYmFsYW5jZSI6MTEwMDB9.ZLGGARYgE5Z3gbqXvjO3Yc17Na5QcDE7OLSzyIsJZLE",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"recipient\": \"8299657759\",\n    \"message\": \"Your code is {{$randomPhoneNumberExt}}, This is an OTP message {{$randomLoremParagraph}}\",\n    \"sender\": \"KALEYRA\",\n    \"type\": \"OTP\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://0.0.0.0:3000/message",
+					"protocol": "http",
+					"host": [
+						"0",
+						"0",
+						"0",
+						"0"
+					],
+					"port": "3000",
+					"path": [
+						"message"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "Send Message",
+					"originalRequest": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmdWxsbmFtZSI6IkhlY3RvciBBY29zdGEiLCJiaWxsYWJsZWVudGl0eWlkIjoiSmhiR2NpT2lKSVV6STFOaUlzSW5SNWNDSTZJa3BYVkNKOSIsInVzZXJ1dWlkIjoiZXlKaGJHY2lPaUpJVXpJMU5pSXNJblI1Y0NJNklrcFhWQ0o5IiwiYmFsYW5jZSI6MTEwMDB9.ZLGGARYgE5Z3gbqXvjO3Yc17Na5QcDE7OLSzyIsJZLE",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"recipient\": \"8299657759\",\n    \"message\": \"Your code is {{$randomPhoneNumberExt}}, This is an OTP message {{$randomLoremParagraph}}\",\n    \"sender\": \"KALEYRA\",\n    \"type\": \"OTP\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://0.0.0.0:3000/message",
+							"protocol": "http",
+							"host": [
+								"0",
+								"0",
+								"0",
+								"0"
+							],
+							"port": "3000",
+							"path": [
+								"message"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json; charset=UTF-8"
+						},
+						{
+							"key": "Date",
+							"value": "Wed, 24 Nov 2021 09:30:59 GMT"
+						},
+						{
+							"key": "Content-Length",
+							"value": "701"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"current_balance\": 10701.132499694824,\n    \"message\": {\n        \"_id\": \"373061363239663439656330\",\n        \"recipient\": \"8299657759\",\n        \"message\": \"Your code is 60-209-668-0762, This is an OTP message Voluptas architecto laboriosam consequuntur nobis libero corrupti quae asperiores. Unde voluptatum quidem error eos minima. Ex qui quisquam officia hic pariatur.\",\n        \"sender\": \"KALEYRA\",\n        \"type\": \"OTP\",\n        \"created_on\": 1637746259553545000,\n        \"received_on\": 1637746259540164000,\n        \"processed_on\": 1637746259558236000,\n        \"rate\": 9.680000305175781\n    },\n    \"message_charge\": \"9.680000\",\n    \"origin\": {\n        \"balance\": 11000,\n        \"billableentityid\": \"JhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\",\n        \"fullname\": \"Hector Acosta\",\n        \"useruuid\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\"\n    },\n    \"status\": \"success\"\n}"
+				}
+			]
+		}
+	]
+}
