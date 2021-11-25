@@ -22,6 +22,7 @@ type BillingClient interface {
 	UserBalance(ctx context.Context, in *BillableEntity, opts ...grpc.CallOption) (*BillResponse, error)
 	FindOrCreateBillingEntity(ctx context.Context, in *BillableEntity, opts ...grpc.CallOption) (*BillResponse, error)
 	CalculateMessageRate(ctx context.Context, in *BillRequest, opts ...grpc.CallOption) (*BillResponse, error)
+	RefundUser(ctx context.Context, in *RefundRequest, opts ...grpc.CallOption) (*BillResponse, error)
 }
 
 type billingClient struct {
@@ -68,6 +69,15 @@ func (c *billingClient) CalculateMessageRate(ctx context.Context, in *BillReques
 	return out, nil
 }
 
+func (c *billingClient) RefundUser(ctx context.Context, in *RefundRequest, opts ...grpc.CallOption) (*BillResponse, error) {
+	out := new(BillResponse)
+	err := c.cc.Invoke(ctx, "/grpcpoc.Billing/RefundUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BillingServer is the server API for Billing service.
 // All implementations must embed UnimplementedBillingServer
 // for forward compatibility
@@ -76,6 +86,7 @@ type BillingServer interface {
 	UserBalance(context.Context, *BillableEntity) (*BillResponse, error)
 	FindOrCreateBillingEntity(context.Context, *BillableEntity) (*BillResponse, error)
 	CalculateMessageRate(context.Context, *BillRequest) (*BillResponse, error)
+	RefundUser(context.Context, *RefundRequest) (*BillResponse, error)
 	mustEmbedUnimplementedBillingServer()
 }
 
@@ -94,6 +105,9 @@ func (UnimplementedBillingServer) FindOrCreateBillingEntity(context.Context, *Bi
 }
 func (UnimplementedBillingServer) CalculateMessageRate(context.Context, *BillRequest) (*BillResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CalculateMessageRate not implemented")
+}
+func (UnimplementedBillingServer) RefundUser(context.Context, *RefundRequest) (*BillResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RefundUser not implemented")
 }
 func (UnimplementedBillingServer) mustEmbedUnimplementedBillingServer() {}
 
@@ -180,6 +194,24 @@ func _Billing_CalculateMessageRate_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Billing_RefundUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefundRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServer).RefundUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/grpcpoc.Billing/RefundUser",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServer).RefundUser(ctx, req.(*RefundRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Billing_ServiceDesc is the grpc.ServiceDesc for Billing service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -202,6 +234,10 @@ var Billing_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CalculateMessageRate",
 			Handler:    _Billing_CalculateMessageRate_Handler,
+		},
+		{
+			MethodName: "RefundUser",
+			Handler:    _Billing_RefundUser_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
