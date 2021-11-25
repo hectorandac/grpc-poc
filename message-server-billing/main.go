@@ -117,6 +117,29 @@ func (s *server) BillUser(ctx context.Context, in *pb.BillRequest) (*pb.BillResp
 	}
 }
 
+func (s *server) RefundUser(ctx context.Context, in *pb.RefundRequest) (*pb.BillResponse, error) {
+	c_billing := db.Collection("billing_entities")
+
+	if in.GetMessage().GetRefunded() {
+		return &pb.BillResponse{
+			Success: false,
+			Body:    "This message has already been refunded.",
+		}, nil
+	}
+
+	updated_balance := in.GetBillableEntity().GetBalance() + in.GetMessage().GetRate()
+	update_billing := bson.M{
+		"$set": messagecommonlib.BillingEntity{
+			UserUUID: in.GetBillableEntity().GetUserUUID(),
+			Balance:  updated_balance,
+			FullName: in.GetBillableEntity().GetFullName(),
+		},
+	}
+	c_billing.UpdateOne(ctx, bson.M{"user_uuid": in.GetBillableEntity().GetUserUUID()}, update_billing)
+
+	return s.UserBalance(ctx, in.GetBillableEntity())
+}
+
 // rpc FindOrCreateBillingEntity(BillableEntity) returns (BillResponse) {}
 // rpc CalculateMessageRate(BillRequest) returns (BillResponse) {}
 // rpc UserBalance(BillableEntity) returns (BillResponse) {}
