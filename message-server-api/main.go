@@ -46,12 +46,14 @@ func main() {
 	m.Use(render.Renderer())
 
 	m.Post("/message", binding.Bind(messagecommonlib.Message{}), processMessage)
+	m.Post("/refund", binding.Bind(messagecommonlib.RefundEntity{}), processRefund)
 
 	m.RunOnAddr(":3000")
 }
 
 func processMessage(message messagecommonlib.Message, r render.Render, db *mgo.Database, req *http.Request) {
 	message.ReceivedOn = time.Now().UnixNano()
+	message.Refunded = false
 	validationError := validate.Struct(message)
 
 	if validationError != nil {
@@ -101,6 +103,7 @@ func processMessage(message messagecommonlib.Message, r render.Render, db *mgo.D
 			CreatedOn:   message.CreatedOn,
 			ReceivedOn:  message.ReceivedOn,
 			ProcessedOn: message.ProcessedOn,
+			Refunded:    message.Refunded,
 		},
 	}
 
@@ -179,4 +182,103 @@ func randomHex(n int) string {
 		return ""
 	}
 	return hex.EncodeToString(bytes)
+}
+
+func processRefund(message_id messagecommonlib.RefundEntity, r render.Render, db *mgo.Database, req *http.Request) {
+
+	token := req.Header.Get("Authorization")
+	claims, tokenErr := extractClaims(token)
+	if token == "" || tokenErr != nil {
+		json := map[string]interface{}{"error": strings.Split(tokenErr.Error(), "\n")}
+		r.JSON(403, json)
+		return
+	}
+
+	var balance float32 = 0
+	if claims["balance"] != nil {
+		balance = float32(claims["balance"].(float64))
+	}
+
+	billableEntity := &pb.BillableEntity{
+		FullName:         claims["fullname"].(string),
+		BillableEntityID: claims["billableentityid"].(string),
+		UserUUID:         claims["useruuid"].(string),
+		Balance:          balance,
+	}
+
+	commonCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	billableEntityId, _ := protoClient.FindOrCreateBillingEntity(commonCtx, billableEntity)
+	if !billableEntityId.Success {
+		json := map[string]interface{}{"error": "Unable to create or retrieve billing info for user"}
+		r.JSON(400, json)
+		return
+	}
+
+	userBalance, _ := protoClient.UserBalance(commonCtx, billableEntity)
+	if !userBalance.Success {
+		json := map[string]interface{}{"error": "Unable to retrieve user balance"}
+		r.JSON(400, json)
+		return
+	}
+
+	t, _ := strconv.ParseFloat(userBalance.Body, 32)
+	billableEntity.Balance = float32(t)
+
+	result := messagecommonlib.Message{}
+	err := db.C("messages").Find(bson.M{"_id": bson.ObjectIdHex(message_id.Id)}).One(&result)
+	if err != nil {
+		json := map[string]interface{}{"error": strings.Split(err.Error(), "\n")}
+		r.JSON(400, json)
+		return
+	}
+
+	message_refund := &pb.Message{
+		Id:          result.Id.Hex(),
+		Recipient:   result.Recipient,
+		Body:        result.Message,
+		Sender:      result.Sender,
+		Type:        result.Type,
+		CreatedOn:   result.CreatedOn,
+		ReceivedOn:  result.ReceivedOn,
+		ProcessedOn: result.ProcessedOn,
+		Rate:        float32(result.Rate),
+		Refunded:    result.Refunded,
+	}
+
+	refund_request := &pb.RefundRequest{
+		Message:        message_refund,
+		BillableEntity: billableEntity,
+	}
+
+	updatedBillableEntity, err := protoClient.RefundUser(commonCtx, refund_request)
+	if !updatedBillableEntity.Success {
+		json := map[string]interface{}{"error": updatedBillableEntity.Body}
+		r.JSON(400, json)
+		return
+	}
+
+	update_message := bson.M{
+		"$set": messagecommonlib.Message{
+			Id:          bson.ObjectIdHex(refund_request.GetMessage().GetId()),
+			Recipient:   refund_request.GetMessage().Recipient,
+			Message:     refund_request.GetMessage().GetBody(),
+			Sender:      refund_request.GetMessage().Sender,
+			Type:        refund_request.GetMessage().Type,
+			CreatedOn:   refund_request.GetMessage().CreatedOn,
+			ReceivedOn:  refund_request.GetMessage().ReceivedOn,
+			ProcessedOn: refund_request.GetMessage().ProcessedOn,
+			Rate:        float64(refund_request.GetMessage().Rate),
+			Refunded:    true,
+		},
+	}
+	db.C("messages").Update(bson.M{"_id": bson.ObjectIdHex(refund_request.GetMessage().Id)}, update_message)
+
+	json := map[string]interface{}{
+		"status":          "success",
+		"message":         message_id.Id + " refunded successfully",
+		"balance_details": updatedBillableEntity.Body,
+		"origin":          claims,
+	}
+	r.JSON(200, json)
 }

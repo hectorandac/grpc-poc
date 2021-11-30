@@ -12,6 +12,7 @@ service Billing {
   rpc UserBalance(BillableEntity) returns (BillResponse) {}
   rpc FindOrCreateBillingEntity(BillableEntity) returns (BillResponse) {}
   rpc CalculateMessageRate(BillRequest) returns (BillResponse) {}
+  rpc RefundUser(RefundRequest) returns (BillResponse) {}
 }
 
 message Message {
@@ -23,6 +24,8 @@ message Message {
 	int64 CreatedOn = 6;
 	int64 ReceivedOn = 7;
 	int64 ProcessedOn = 8;
+    float Rate = 9;
+    bool Refunded = 10;
 }
 
 message BillRequest {
@@ -40,4 +43,9 @@ message BillableEntity {
 message BillResponse {
     bool success = 1;
     string body = 2;
+}
+
+message RefundRequest {
+    Message message = 1;
+    BillableEntity billableEntity = 2; 
 }

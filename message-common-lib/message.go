@@ -12,4 +12,5 @@ type Message struct {
 	ReceivedOn  int64         `json:"received_on" bson:"received_on"`
 	ProcessedOn int64         `json:"processed_on" bson:"processed_on"`
 	Rate        float64       `json:"rate" bson:"rate"`
+	Refunded    bool          `json:"refunded" bson:"refunded"`
 }
