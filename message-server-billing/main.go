@@ -140,12 +140,6 @@ func (s *server) RefundUser(ctx context.Context, in *pb.RefundRequest) (*pb.Bill
 	return s.UserBalance(ctx, in.GetBillableEntity())
 }
 
-// rpc FindOrCreateBillingEntity(BillableEntity) returns (BillResponse) {}
-// rpc CalculateMessageRate(BillRequest) returns (BillResponse) {}
-// rpc UserBalance(BillableEntity) returns (BillResponse) {}
-// rpc BillUser(BillRequest) returns (BillResponse) {}
-// TODO: Refund
-
 func main() {
 	dbClient = utility.MongoDB()
 	db = dbClient.Database("messsage-server-billing")
