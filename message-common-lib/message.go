@@ -13,4 +13,5 @@ type Message struct {
 	ProcessedOn int64         `json:"processed_on" bson:"processed_on"`
 	Rate        float64       `json:"rate" bson:"rate"`
 	Refunded    bool          `json:"refunded" bson:"refunded"`
+	ProcessTime int64         `json:"process_time" bson:"process_time"`
 }

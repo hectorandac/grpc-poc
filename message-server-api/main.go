@@ -4,6 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -47,6 +51,8 @@ func main() {
 
 	m.Post("/message", binding.Bind(messagecommonlib.Message{}), processMessage)
 	m.Post("/refund", binding.Bind(messagecommonlib.RefundEntity{}), processRefund)
+	m.Post("/message-n", binding.Bind(messagecommonlib.Message{}), processMessageN)
+	m.Post("/refund-n", binding.Bind(messagecommonlib.RefundEntity{}), processRefund)
 
 	m.RunOnAddr(":3000")
 }
@@ -138,6 +144,7 @@ func processMessage(message messagecommonlib.Message, r render.Render, db *mgo.D
 	}
 
 	message.CreatedOn = time.Now().UnixNano()
+	message.ProcessTime = message.CreatedOn - message.ReceivedOn
 	err := db.C("messages").Insert(message)
 	if err != nil {
 		json := map[string]interface{}{"error": strings.Split(err.Error(), "\n")}
@@ -281,4 +288,170 @@ func processRefund(message_id messagecommonlib.RefundEntity, r render.Render, db
 		"origin":          claims,
 	}
 	r.JSON(200, json)
+}
+
+func processMessageN(message messagecommonlib.Message, r render.Render, db *mgo.Database, req *http.Request) {
+	message.ReceivedOn = time.Now().UnixNano()
+	message.Refunded = false
+	validationError := validate.Struct(message)
+
+	if validationError != nil {
+		json := map[string]interface{}{"error": strings.Split(validationError.Error(), "\n")}
+		r.JSON(400, json)
+		return
+	}
+
+	token := req.Header.Get("Authorization")
+	claims, tokenErr := extractClaims(token)
+	if token == "" || tokenErr != nil {
+		json := map[string]interface{}{"error": strings.Split(tokenErr.Error(), "\n")}
+		r.JSON(403, json)
+		return
+	}
+
+	var balance float32 = 0
+	if claims["balance"] != nil {
+		balance = float32(claims["balance"].(float64))
+	}
+
+	billableEntity := &pb.BillableEntity{
+		FullName:         claims["fullname"].(string),
+		BillableEntityID: claims["billableentityid"].(string),
+		UserUUID:         claims["useruuid"].(string),
+		Balance:          balance,
+	}
+
+	bJson, _ := json.Marshal(billableEntity)
+	billableEntityId := httpRequest(
+		"GET",
+		"http://0.0.0.0:3010/billlingentity",
+		strings.NewReader(string(bJson)),
+	)
+	var bResponse pb.BillResponse
+	json.Unmarshal([]byte(billableEntityId), &bResponse)
+
+	if !bResponse.Success {
+		json := map[string]interface{}{"error": "Unable to create or retrieve billing infor for user"}
+		r.JSON(400, json)
+		return
+	}
+
+	message.Id = bson.ObjectId(randomHex(6))
+	billingRequest := &pb.BillRequest{
+		UserUUID: claims["useruuid"].(string),
+		Deliverable: &pb.Message{
+			Id:          message.Id.Hex(),
+			Recipient:   message.Recipient,
+			Body:        message.Message,
+			Sender:      message.Sender,
+			Type:        message.Type,
+			CreatedOn:   message.CreatedOn,
+			ReceivedOn:  message.ReceivedOn,
+			ProcessedOn: message.ProcessedOn,
+			Refunded:    message.Refunded,
+		},
+	}
+
+	cJson, _ := json.Marshal(billingRequest)
+	messagePrice := httpRequest(
+		"GET",
+		"http://0.0.0.0:3010/message-rate",
+		strings.NewReader(string(cJson)),
+	)
+	var cResponse pb.BillResponse
+	json.Unmarshal([]byte(messagePrice), &cResponse)
+	if !cResponse.Success {
+		json := map[string]interface{}{"error": "Unable to retrieve messaging price"}
+		r.JSON(400, json)
+		return
+	}
+
+	dJson, _ := json.Marshal(billableEntity)
+	userBalance := httpRequest(
+		"GET",
+		"http://0.0.0.0:3010/balance",
+		strings.NewReader(string(dJson)),
+	)
+	var dResponse pb.BillResponse
+	json.Unmarshal([]byte(userBalance), &dResponse)
+	if !dResponse.Success {
+		json := map[string]interface{}{"error": "Unable to retrieve user balance"}
+		r.JSON(400, json)
+		return
+	}
+
+	userBalanceNumerical, _ := strconv.ParseFloat(dResponse.GetBody(), 32)
+	messagePriceNumerical, _ := strconv.ParseFloat(cResponse.GetBody(), 32)
+	if (userBalanceNumerical - messagePriceNumerical) < 0 {
+		json := map[string]interface{}{"error": "You don't have enough balance for this message"}
+		r.JSON(400, json)
+		return
+	}
+
+	message.Rate = messagePriceNumerical
+
+	eJson, _ := json.Marshal(billingRequest)
+	billingResponse := httpRequest(
+		"POST",
+		"http://0.0.0.0:3010/bill",
+		strings.NewReader(string(eJson)),
+	)
+	var eResponse pb.BillResponse
+	json.Unmarshal([]byte(billingResponse), &eResponse)
+	if !eResponse.Success {
+		json := map[string]interface{}{"error": "Couldn't bill you for this message", "body": eResponse.GetBody()}
+		r.JSON(400, json)
+		return
+	}
+
+	message.CreatedOn = time.Now().UnixNano()
+	message.ProcessTime = message.CreatedOn - message.ReceivedOn
+	err := db.C("messages").Insert(message)
+	if err != nil {
+		json := map[string]interface{}{"error": strings.Split(err.Error(), "\n")}
+		r.JSON(400, json)
+		return
+	}
+
+	message.ProcessedOn = time.Now().UnixNano()
+	updateErr := db.C("messages").UpdateId(message.Id, message)
+	if updateErr != nil {
+		json := map[string]interface{}{"error": strings.Split(updateErr.Error(), "\n")}
+		r.JSON(400, json)
+		return
+	}
+
+	json := map[string]interface{}{
+		"status":          "success",
+		"message":         message,
+		"message_charge":  cResponse.GetBody(),
+		"current_balance": userBalanceNumerical - messagePriceNumerical,
+		"origin":          claims,
+	}
+	r.JSON(200, json)
+}
+
+func httpRequest(method string, url string, payload io.Reader) string {
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, payload)
+	req.Header.Add("Content-Type", "application/json")
+
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	defer res.Body.Close()
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	return string(body)
 }
